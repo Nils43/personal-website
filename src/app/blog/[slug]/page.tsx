@@ -1,18 +1,52 @@
 import { blogPosts, getPostBySlug, getAllSlugs } from "@/lib/blog-data";
+import { getNotionPosts, getNotionPostContent } from "@/lib/notion";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, Clock, Calendar } from "lucide-react";
 import type { Metadata } from "next";
 
-export function generateStaticParams() {
-  return getAllSlugs().map((slug) => ({ slug }));
+export const revalidate = 60; // ISR — re-fetch from Notion every 60s
+
+export async function generateStaticParams() {
+  // Always include static slugs
+  const staticSlugs = getAllSlugs().map((slug) => ({ slug }));
+
+  // Also include Notion slugs if available
+  const notionPosts = await getNotionPosts();
+  const notionSlugs = notionPosts.map((p) => ({ slug: p.slug }));
+
+  // Merge & deduplicate
+  const allSlugs = [...staticSlugs];
+  for (const ns of notionSlugs) {
+    if (!allSlugs.some((s) => s.slug === ns.slug)) {
+      allSlugs.push(ns);
+    }
+  }
+  return allSlugs;
 }
 
-export function generateMetadata({
+export async function generateMetadata({
   params,
 }: {
   params: { slug: string };
-}): Metadata {
+}): Promise<Metadata> {
+  // Try Notion first
+  const notionPosts = await getNotionPosts();
+  const notionPost = notionPosts.find((p) => p.slug === params.slug);
+  if (notionPost) {
+    return {
+      title: `${notionPost.title} — Nils Heck`,
+      description: notionPost.excerpt,
+      openGraph: {
+        title: notionPost.title,
+        description: notionPost.excerpt,
+        type: "article",
+        publishedTime: notionPost.date,
+      },
+    };
+  }
+
+  // Fall back to static
   const post = getPostBySlug(params.slug);
   if (!post) return {};
   return {
@@ -71,13 +105,33 @@ function parseMarkdown(content: string): string {
     .join("\n");
 }
 
-export default function BlogPostPage({
+export default async function BlogPostPage({
   params,
 }: {
   params: { slug: string };
 }) {
-  const post = getPostBySlug(params.slug);
+  // Try Notion content first
+  const notionPosts = await getNotionPosts();
+  const notionPost = notionPosts.find((p) => p.slug === params.slug);
+  const notionContent = await getNotionPostContent(params.slug);
+
+  // Determine post data (Notion or static)
+  const post = notionPost
+    ? {
+        title: notionPost.title,
+        excerpt: notionPost.excerpt,
+        categoryIcon: notionPost.categoryIcon,
+        categoryLabel: notionPost.categoryLabel,
+        readingTime: notionPost.readingTime,
+        date: notionPost.date,
+        content: "", // unused when we have notionContent
+      }
+    : getPostBySlug(params.slug);
+
   if (!post) notFound();
+
+  // Use Notion-rendered HTML or fall back to static markdown parser
+  const htmlContent = notionContent || parseMarkdown(post.content);
 
   return (
     <article className="pt-32 pb-24">
@@ -129,7 +183,7 @@ export default function BlogPostPage({
         {/* Content */}
         <div
           className="space-y-4 [&>h2]:scroll-mt-24"
-          dangerouslySetInnerHTML={{ __html: parseMarkdown(post.content) }}
+          dangerouslySetInnerHTML={{ __html: htmlContent }}
         />
 
         {/* Footer */}
