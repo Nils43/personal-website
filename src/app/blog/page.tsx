@@ -2,7 +2,7 @@ import { getNotionPosts } from "@/lib/notion";
 import BlogPageClient from "@/components/BlogPageClient";
 import type { BlogPost } from "@/components/BlogPageClient";
 
-export const revalidate = 60; // ISR — re-fetch from Notion every 60s
+export const dynamic = "force-dynamic"; // Always fetch fresh from Notion
 
 // Static fallback posts (used when Notion is not configured)
 const staticPosts: BlogPost[] = [

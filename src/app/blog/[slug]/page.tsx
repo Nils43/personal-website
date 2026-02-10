@@ -5,7 +5,7 @@ import Link from "next/link";
 import { ArrowLeft, Clock, Calendar } from "lucide-react";
 import type { Metadata } from "next";
 
-export const revalidate = 60; // ISR — re-fetch from Notion every 60s
+export const dynamic = "force-dynamic"; // Always fetch fresh from Notion
 
 export async function generateStaticParams() {
   // Always include static slugs
