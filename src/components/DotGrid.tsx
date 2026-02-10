@@ -98,7 +98,7 @@ export default function DotGrid() {
   return (
     <canvas
       ref={canvasRef}
-      className="absolute inset-0 pointer-events-auto z-0"
+      className="absolute inset-0 pointer-events-none z-0"
       aria-hidden="true"
     />
   );
